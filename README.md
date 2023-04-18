@@ -1,0 +1,2 @@
+# pomogo
+Pomodoro in Golang
