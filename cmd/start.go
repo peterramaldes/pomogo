@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 	"time"
@@ -20,31 +21,70 @@ func init() {
 var startCmd = &cobra.Command{
 	Use: "start",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Get the home dir path
-		path, err := os.UserHomeDir()
+		// Description are required
+		if len(description) == 0 {
+			return errors.New("description is required")
+		}
+
+		pomos, err := getPomos()
 		if err != nil {
 			return err
 		}
 
-		// Get the filejson if exists and add a new content there
+		newPomo := pomo.NewPomo(time.Now(), description)
+		pomos = append(pomos, newPomo)
 
-		var mock = []pomo.Pomo{
-			{
-				Start:       time.Now(),
-				Description: description,
-			},
-		}
-
-		j, err := json.MarshalIndent(mock, "", " ")
+		j, err := json.MarshalIndent(pomos, "", " ")
 		if err != nil {
 			return err
 		}
 
-		err = ioutil.WriteFile(path+"/.pomo.json", j, 0666) // 0666 indicates we going to create if not exists
+		filepath, err := getFilePath()
+		if err != nil {
+			return err
+		}
+
+		// NOTE: 0666 indicates we going to create if not exists
+		err = ioutil.WriteFile(filepath, j, 0666)
 		if err != nil {
 			return err
 		}
 
 		return nil
 	},
+}
+
+// getPomos is reponsible for get all pomodoros created at moment. If the file
+// is not created storing the pomo's this method is responsible for create it
+func getPomos() ([]pomo.Pomo, error) {
+	filepath, err := getFilePath()
+	if err != nil {
+		return []pomo.Pomo{}, err
+	}
+
+	f, err := os.OpenFile(filepath, os.O_RDONLY|os.O_CREATE, 0666)
+	if err != nil {
+		return []pomo.Pomo{}, err
+	}
+	defer f.Close()
+
+	b, err := ioutil.ReadAll(f)
+	if err != nil {
+		return []pomo.Pomo{}, err
+	}
+
+	var pomos []pomo.Pomo
+	json.Unmarshal(b, &pomos)
+
+	return pomos, nil
+}
+
+func getFilePath() (string, error) {
+	// Get the home dir path
+	path, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	return path + "/.pomo.json", nil
 }
