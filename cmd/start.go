@@ -3,38 +3,40 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
-	"time"
 
 	"github.com/peterramaldes/pomogo/internal/pomo"
 	"github.com/spf13/cobra"
 )
 
-var description string
+var acitivity string
 
 func init() {
 	rootCmd.AddCommand(startCmd)
-	startCmd.Flags().StringVarP(&description, "description", "d", "", "Description (required)")
+	startCmd.Flags().StringVarP(&acitivity, "activity", "a", "", "Activity (required)")
 }
 
 var startCmd = &cobra.Command{
 	Use: "start",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Description are required
-		if len(description) == 0 {
+		if len(acitivity) == 0 {
 			return errors.New("description is required")
 		}
 
-		pomos, err := getPomos()
+		currentTrackingFile, err := currentTrackingFile()
 		if err != nil {
 			return err
 		}
 
-		newPomo := pomo.NewPomo(time.Now(), description)
-		pomos = append(pomos, newPomo)
+		currentTrackingFile.StoreCurrentPomo()
 
-		j, err := json.MarshalIndent(pomos, "", " ")
+		// TODO: Put in the result the last Pomo
+		// TODO: Start a new Pomo
+
+		j, err := json.MarshalIndent(currentTrackingFile, "", " ")
 		if err != nil {
 			return err
 		}
@@ -54,37 +56,37 @@ var startCmd = &cobra.Command{
 	},
 }
 
-// getPomos is reponsible for get all pomodoros created at moment. If the file
+// currentTrackingFile is reponsible for get all pomodoros created at moment. If the file
 // is not created storing the pomo's this method is responsible for create it
-func getPomos() ([]pomo.Pomo, error) {
+func currentTrackingFile() (pomo.TrackingFile, error) {
 	filepath, err := getFilePath()
 	if err != nil {
-		return []pomo.Pomo{}, err
+		return pomo.TrackingFile{}, err
 	}
 
 	f, err := os.OpenFile(filepath, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
-		return []pomo.Pomo{}, err
+		return pomo.TrackingFile{}, err
 	}
 	defer f.Close()
 
 	b, err := ioutil.ReadAll(f)
 	if err != nil {
-		return []pomo.Pomo{}, err
+		return pomo.TrackingFile{}, err
 	}
 
-	var pomos []pomo.Pomo
-	json.Unmarshal(b, &pomos)
+	var currentTrackingFile pomo.TrackingFile
+	json.Unmarshal(b, &currentTrackingFile)
 
-	return pomos, nil
+	return currentTrackingFile, nil
 }
 
+// getFilePath is responsible for get the entire path for the pomo stored file
 func getFilePath() (string, error) {
-	// Get the home dir path
 	path, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
 
-	return path + "/.pomo.json", nil
+	return fmt.Sprintf("%s/%s", path, ".pomo.json"), nil
 }
